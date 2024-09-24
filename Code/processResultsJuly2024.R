@@ -144,7 +144,7 @@ p<-ggplot(ver,aes(red, bridge, z= MSM_recov_Mean)) + theme_bw() +
 pd<-ggplot_build(p)
 pd$data[[2]] %>% pull(order) %>% unique()
 # order in 20  40  60  80 100 120 140 160 180 200 220
-contours<-pd$data[[2]] %>% filter(order==120) %>%
+contours<-pd$data[[2]] %>% filter(order==140) %>%
   select(red=x,bridge=y,MSM_recov_Mean=weight)
 
 ggplot(ver,aes(red, bridge, z= MSM_recov_Mean)) + theme_bw() +

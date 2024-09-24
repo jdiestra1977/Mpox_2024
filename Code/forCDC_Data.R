@@ -1,7 +1,7 @@
 library(tidyverse)
 library(readxl)
 
-setwd("~/Projects/Monkeypox/Data_CDC/")
+setwd("~/Documents/GitHub/Mpox_2024/Data/Data_CDC/")
 
 cases<-read_xlsx("weeklyMpoxCases_CDC.xlsx")
 
