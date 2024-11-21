@@ -5,7 +5,9 @@ remove(list = ls())
 
 setwd("~/Documents/GitHub/Mpox_2024/")
 
-files=Sys.glob("Data/Simulations/LastRunsJuly18/*")
+files0=Sys.glob("Data/Simulations/LastRunsJuly18/*")
+files1=Sys.glob("Data/Simulations/RedInHETSep/*")
+files<-c(files0,files1)
 f=1
 AllResultsTogether<-NULL
 for(f in 1:length(files)){
@@ -15,6 +17,7 @@ for(f in 1:length(files)){
 
 allBridge<-AllResultsTogether %>% pull(bridge) %>% unique() %>% sort()
 allRed<-AllResultsTogether %>% pull(red) %>% unique() %>% sort()
+allRed_HET<-AllResultsTogether %>% pull(red_HET) %>% unique() %>% sort()
 
 estimateCIs<-function(x){
   sample.mean <- mean(x)
@@ -37,22 +40,29 @@ estimateCIs<-function(x){
 }
 
 #Calculating confidence intervals by separate
+b=1
+r=1
+h=1
 CI_variables<-NULL
 for(b in 1:length(allBridge)){
   for(r in 1:length(allRed)){
-    ver0<-AllResultsTogether %>% 
-      select(-"...1",-"strat",-country,-red_HET,-R0) %>%
-      filter(red==allRed[r],bridge==allBridge[b])
-    ver1<-data.frame(Lower_MSM_recov=estimateCIs(ver0 %>% pull(MSM_recov))[[1]],Upper_MSM_recov=estimateCIs(ver0 %>% pull(MSM_recov))[[2]])
-    ver2<-data.frame(Lower_HET_recov=estimateCIs(ver0 %>% pull(HET_recov))[[1]],Upper_HET_recov=estimateCIs(ver0 %>% pull(HET_recov))[[2]])
-    ver3<-cbind(ver1,ver2) %>% mutate(red=allRed[r],bridge=allBridge[b])
-    CI_variables<-rbind(CI_variables,ver3)
+    for(rh in 1:length(allRed_HET)){
+      ver0<-AllResultsTogether %>% 
+      select(-"...1",-"strat",-country,-R0) %>%
+      filter(red==allRed[r],bridge==allBridge[b],red_HET==allRed_HET[rh])
+      ver1<-data.frame(Lower_MSM_recov=estimateCIs(ver0 %>% pull(MSM_recov))[[1]],Upper_MSM_recov=estimateCIs(ver0 %>% pull(MSM_recov))[[2]])
+      ver2<-data.frame(Lower_HET_recov=estimateCIs(ver0 %>% pull(HET_recov))[[1]],Upper_HET_recov=estimateCIs(ver0 %>% pull(HET_recov))[[2]])
+      ver3<-cbind(ver1,ver2) %>% mutate(red=allRed[r],bridge=allBridge[b],red_HET=allRed_HET[rh])
+      CI_variables<-rbind(CI_variables,ver3)
+    }
   }
 }
 
+CI_variables<-CI_variables %>% drop_na()
+
 meanResults<-AllResultsTogether %>% 
-  select(-"...1",-"strat",-country,-red_HET) %>% 
-  group_by(R0,red,bridge) %>%
+  select(-"...1",-"strat",-country) %>% 
+  group_by(R0,red,bridge,red_HET) %>%
   summarise_each(list(Mean=mean,SD=sd)) %>% 
   left_join(CI_variables)
 
@@ -75,9 +85,9 @@ missingPoint <- data.frame(R0=1.5,red=0.75,bridge=0.55,MSM_recov_Mean=217.51,
 meanResults1<-rbind(meanResults,missingPoint)
 
 # Effect of bridges in MSM for some red and bridge parameters
-maxMSM=meanResults1$MSM_recov_Mean %>% unique() %>% max()
+maxMSM=meanResults$MSM_recov_Mean %>% unique() %>% max()
 
-meanResults1 %>%
+meanResults %>% filter(red_HET==0) %>%
   filter(red %in% c(0.5,0.75,0.95)) %>% mutate(red=100*red) %>%
   filter(bridge %in% c(0,0.05,0.3,0.5)) %>% mutate(bridge=100*bridge) %>%
   ggplot(aes(x=as.factor(red),y=MSM_recov_Mean/maxMSM,fill=as.factor(bridge))) + theme_bw() +
@@ -87,7 +97,7 @@ meanResults1 %>%
   theme(legend.position = c(0.75,0.85),text=element_text(size=18)) +
   xlab("Reduction of risky behavior (%)") + ylab("Fraction infected in MSM")
 
-meanResults1 %>%
+meanResults %>% filter(red_HET==0) %>%
   filter(red %in% c(0.5,0.75,0.95)) %>% mutate(red=100*red) %>%
   filter(bridge %in% c(0,0.05,0.3,0.5)) %>% mutate(bridge=100*bridge) %>%
   ggplot(aes(x=as.factor(red),y=MSM_recov_Mean/maxMSM,fill=as.factor(bridge))) + theme_bw() +
@@ -97,40 +107,9 @@ meanResults1 %>%
   theme(legend.position = c(0.75,0.85),text=element_text(size=18)) + ylim(0,1)+
   xlab("Reduction of risky behavior (%)") + ylab("Fraction infected in MSM")
 
-#Effect of bridges in outbreaks in HET
-maxHET=meanResults1$HET_recov_Mean %>% unique() %>% max()
-
-meanResults1 %>%
-  filter(red %in% c(0.5,0.85,0.95)) %>% mutate(red=100*red) %>%
-  filter(bridge %in% c(0.05,0.1,0.3,0.5)) %>% mutate(bridge=100*bridge) %>%
-  ggplot(aes(x=as.factor(red),y=HET_recov_Mean/maxHET,fill=as.factor(bridge))) + theme_bw() +
-  geom_col(position = position_dodge(0.7),alpha=0.7) +
-  geom_errorbar(aes(ymin=(HET_recov_Mean-HET_recov_SD)/maxHET,ymax=(HET_recov_Mean+HET_recov_SD)/maxHET),
-                position = position_dodge(0.7),width=0.3) + labs(fill="% of bridges") + 
-  theme(legend.position = c(0.75,0.85),text=element_text(size=18)) +
-  xlab("Reduction of risky behavior (%)") + ylab("Fraction infected in HET")
-
-meanResults1 %>%
-  filter(red %in% c(0.5,0.85,0.95)) %>% mutate(red=100*red) %>%
-#  filter(bridge %in% c(0,0.05,0.3,0.5,0.7)) %>% mutate(bridge=100*bridge) %>%
-  filter(bridge %in% c(0.05,0.1,0.3,0.5)) %>% mutate(bridge=100*bridge) %>%
-  ggplot(aes(x=as.factor(red),y=HET_recov_Mean/maxHET,fill=as.factor(bridge))) + theme_bw() +
-  geom_col(position = position_dodge(0.7),alpha=0.7) +
-  geom_errorbar(aes(ymin=Lower_HET_recov/maxHET,ymax=Upper_HET_recov/maxHET),
-                position = position_dodge(0.7),width=0.3) + labs(fill="% of bridges") + 
-  theme(legend.position = c(0.75,0.85),text=element_text(size=18)) +
-  xlab("Reduction of risky behavior (%)") + ylab("Fraction infected in MSM")
-
-meanResults1 %>% #filter(red!=0.95) %>%
-  filter(red %in% redValues) %>%
-  ggplot(aes(x=bridge,y=MSM_recov_Mean,group=red,color=as.factor(red)))+
-  geom_line() + geom_point() + #scale_x_log10() + scale_y_log10() +
-#  geom_errorbar(aes(ymin=MSM_recov_Mean-MSM_recov_SD,ymax=MSM_recov_Mean+MSM_recov_SD))+
-  geom_errorbar(aes(ymin=Lower_MSM_recov,ymax=Upper_MSM_recov))
-
 #Heat map reduction - bridge nodes
 
-ver<-meanResults1 %>% mutate(redLog=log(red)) %>%
+ver<-meanResults %>% mutate(redLog=log(red)) %>%
   filter(red>=0.5) %>% filter(bridge<=0.5) %>%
   filter(bridge %in% c(0,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5))
 
@@ -155,6 +134,50 @@ ggplot(ver,aes(red, bridge, z= MSM_recov_Mean)) + theme_bw() +
   labs(fill="Frac. Inf. in MSM") 
 
 # For reduction in contact of bridges in HET layer
+
+meanResults %>% filter(red_HET!=0,bridge %in% c(0.01,0.05,0.1),red==0.5) %>%
+  ggplot(aes(x=as.factor(bridge),y=HET_recov_Mean,fill=as.factor(red_HET))) +
+  geom_col(position = position_dodge(0.9)) + facet_wrap(~red_HET,scales = "free_y")
+
+meanResults %>% filter(red_HET!=0,bridge %in% c(0.01,0.05,0.1),red==0.5) %>% #print(n=40)
+  ggplot(aes(x=as.factor(bridge),y=HET_recov_SD,fill=as.factor(red_HET))) +
+  geom_col(position = position_dodge(0.9)) + facet_wrap(~red_HET,scales = "free_y")
+
+meanResults %>% filter(red_HET!=0) %>% print(n=50)
+  
+
+#Effect of bridges in outbreaks in HET
+maxHET=meanResults %>% filter(red_HET!=0) %>% pull(HET_recov_Mean) %>% unique() %>% max()
+
+meanResults %>%
+  filter(red %in% c(0.5,0.85,0.95)) %>% mutate(red=100*red) %>%
+  filter(bridge %in% c(0.05,0.1,0.3,0.5)) %>% mutate(bridge=100*bridge) %>%
+  ggplot(aes(x=as.factor(red),y=HET_recov_Mean/maxHET,fill=as.factor(bridge))) + theme_bw() +
+  geom_col(position = position_dodge(0.7),alpha=0.7) +
+  geom_errorbar(aes(ymin=(HET_recov_Mean-HET_recov_SD)/maxHET,ymax=(HET_recov_Mean+HET_recov_SD)/maxHET),
+                position = position_dodge(0.7),width=0.3) + labs(fill="% of bridges") + 
+  theme(legend.position = c(0.75,0.85),text=element_text(size=18)) +
+  xlab("Reduction of risky behavior (%)") + ylab("Fraction infected in HET")
+
+meanResults %>%
+  filter(red %in% c(0.5,0.85,0.95)) %>% mutate(red=100*red) %>%
+  #  filter(bridge %in% c(0,0.05,0.3,0.5,0.7)) %>% mutate(bridge=100*bridge) %>%
+  filter(bridge %in% c(0.05,0.1,0.3,0.5)) %>% mutate(bridge=100*bridge) %>%
+  ggplot(aes(x=as.factor(red),y=HET_recov_Mean/maxHET,fill=as.factor(bridge))) + theme_bw() +
+  geom_col(position = position_dodge(0.7),alpha=0.7) +
+  geom_errorbar(aes(ymin=Lower_HET_recov/maxHET,ymax=Upper_HET_recov/maxHET),
+                position = position_dodge(0.7),width=0.3) + labs(fill="% of bridges") + 
+  theme(legend.position = c(0.75,0.85),text=element_text(size=18)) +
+  xlab("Reduction of risky behavior (%)") + ylab("Fraction infected in MSM")
+
+meanResults %>% #filter(red!=0.95) %>%
+  filter(red %in% redValues) %>%
+  ggplot(aes(x=bridge,y=MSM_recov_Mean/maxMSM,group=red,color=as.factor(red)))+
+  geom_line() + geom_point() + #scale_x_log10() + scale_y_log10() +
+  #  geom_errorbar(aes(ymin=MSM_recov_Mean-MSM_recov_SD,ymax=MSM_recov_Mean+MSM_recov_SD))+
+  geom_errorbar(aes(ymin=Lower_MSM_recov/maxMSM,ymax=Upper_MSM_recov/maxMSM))
+
+
 
 files1=Sys.glob("Data/Simulations/RedInHETSep/*")
 f=1
@@ -194,7 +217,7 @@ meanResults_HET<-AllResultsTogetherHET %>%
   group_by(red_HET,bridge) %>% summarise_each(list(Mean=mean,Sd=sd)) %>% 
   left_join(CI_variables_H)
 
-meanResults_HET %>%
+meanResults_HET %>% filter(red_HET >0.5) %>%
   ggplot(aes(x=as.factor(bridge),y=MSM_recov_Mean/max(MSM_recov_Mean),fill=as.factor(red_HET)))+
   geom_col(position = position_dodge(0.7)) +
   geom_errorbar(aes(ymin=(MSM_recov_Mean-MSM_recov_Sd)/max(MSM_recov_Mean),ymax=(MSM_recov_Mean+MSM_recov_Sd)/max(MSM_recov_Mean)),
