@@ -178,7 +178,6 @@ meanResults %>% #filter(red!=0.95) %>%
   geom_errorbar(aes(ymin=Lower_MSM_recov/maxMSM,ymax=Upper_MSM_recov/maxMSM))
 
 
-
 files1=Sys.glob("Data/Simulations/RedInHETSep/*")
 f=1
 AllResultsTogetherHET<-NULL
